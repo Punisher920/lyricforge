@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lyricforge</title>
+<style>
+  :root {
+    --bg: #14110f; --panel: #1e1a17; --line: #322b26;
+    --text: #f2ece6; --dim: #a1948a; --accent: #e8913c; --ok: #6fbf73; --bad: #e06c6c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px 64px; background: var(--bg); color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--dim); margin: 0 0 28px; }
+  section {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px; margin-bottom: 16px;
+  }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+       color: var(--dim); margin: 0 0 14px; font-weight: 600; }
+  .drop {
+    border: 2px dashed var(--line); border-radius: 10px; padding: 26px 18px;
+    text-align: center; color: var(--dim); cursor: pointer; transition: .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); color: var(--text); }
+  .drop.filled { border-style: solid; border-color: var(--ok); color: var(--text); }
+  .drop b { color: var(--text); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 220px; }
+  label.opt { display: inline-flex; align-items: center; gap: 8px; margin: 0 16px 8px 0; cursor: pointer; }
+  input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+  select, input[type=number] {
+    background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 7px; padding: 7px 9px; font: inherit;
+  }
+  button {
+    background: var(--accent); color: #241505; border: 0; border-radius: 8px;
+    padding: 11px 20px; font: 600 15px/1 inherit; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .bar { height: 7px; background: var(--bg); border-radius: 99px; overflow: hidden; margin: 12px 0 8px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+  .meta { color: var(--dim); font-size: 13px; }
+  .meta code { color: var(--text); }
+  img.preview { max-width: 100%; border-radius: 8px; margin-top: 14px; background: #000; }
+  .err { color: var(--bad); }
+  a.dl { display: inline-block; color: var(--accent); margin: 0 14px 6px 0; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>lyricforge</h1>
+  <p class="sub">Put your Suno lyrics over your own background.</p>
+
+  <section>
+    <h2>1 &nbsp;Files</h2>
+    <div class="row">
+      <div class="drop" id="dropSong">
+        <b>Your Suno video</b><br>drag it here, or click
+      </div>
+      <div class="drop" id="dropBg">
+        <b>Your background clip</b><br>drag it here, or click
+      </div>
+    </div>
+    <input type="file" id="fileSong" accept="video/*" class="hide">
+    <input type="file" id="fileBg" accept="video/*" class="hide">
+  </section>
+
+  <section>
+    <h2>2 &nbsp;Options</h2>
+    <label class="opt"><input type="checkbox" id="onlyLyrics" checked> Lyrics only
+      <span class="meta">(drops title, cover art and watermark)</span></label>
+    <div style="margin:10px 0 14px">
+      <label class="opt"><input type="checkbox" class="ratio" value="9:16" checked> 9:16 <span class="meta">TikTok / Reels</span></label>
+      <label class="opt"><input type="checkbox" class="ratio" value="1:1"> 1:1 <span class="meta">Feed</span></label>
+      <label class="opt"><input type="checkbox" class="ratio" value="16:9"> 16:9 <span class="meta">YouTube</span></label>
+      <label class="opt"><input type="checkbox" class="ratio" value="4:5"> 4:5 <span class="meta">IG portrait</span></label>
+    </div>
+    <label class="meta">Length
+      <select id="duration">
+        <option value="15">First 15 seconds (quick test)</option>
+        <option value="30">First 30 seconds</option>
+        <option value="">Whole song</option>
+      </select>
+    </label>
+  </section>
+
+  <section>
+    <h2>3 &nbsp;Check, then render</h2>
+    <div class="row" style="align-items:center">
+      <button class="ghost" id="btnCheck" disabled>Check first</button>
+      <button id="btnRender" disabled>Render</button>
+    </div>
+    <div id="info" class="meta" style="margin-top:14px"></div>
+    <img id="preview" class="preview hide" alt="Extraction preview">
+    <div id="progressWrap" class="hide">
+      <div class="bar"><i id="bar"></i></div>
+      <div class="meta" id="stage"></div>
+    </div>
+    <div id="results" style="margin-top:12px"></div>
+  </section>
+</main>
+
+<script>
+const state = { song: null, background: null };
+
+function wire(dropId, inputId, key, label) {
+  const drop = document.getElementById(dropId);
+  const input = document.getElementById(inputId);
+  drop.onclick = () => input.click();
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => {
+    e.preventDefault(); drop.classList.remove('over');
+    if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0], drop, key, label);
+  };
+  input.onchange = () => input.files[0] && upload(input.files[0], drop, key, label);
+}
+
+async function upload(file, drop, key, label) {
+  drop.classList.remove('filled');
+  drop.innerHTML = `<b>${label}</b><br>uploading ${file.name}…`;
+  try {
+    const res = await fetch('/api/upload', {
+      method: 'POST', headers: { 'X-Filename': file.name }, body: file
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    state[key] = data.name;
+    drop.classList.add('filled');
+    const mb = (data.size / 1048576).toFixed(1);
+    drop.innerHTML = `<b>${label}</b><br>${data.name} &middot; ${mb} MB`;
+  } catch (err) {
+    drop.innerHTML = `<b>${label}</b><br><span class="err">${err.message}</span>`;
+  }
+  refresh();
+}
+
+function ratios() {
+  return [...document.querySelectorAll('.ratio:checked')].map(c => c.value);
+}
+function refresh() {
+  const ready = state.song && state.background && ratios().length;
+  document.getElementById('btnRender').disabled = !ready;
+  document.getElementById('btnCheck').disabled = !state.song;
+}
+document.querySelectorAll('.ratio').forEach(c => c.onchange = refresh);
+
+wire('dropSong', 'fileSong', 'song', 'Your Suno video');
+wire('dropBg', 'fileBg', 'background', 'Your background clip');
+
+document.getElementById('btnCheck').onclick = async () => {
+  const info = document.getElementById('info');
+  info.textContent = 'Looking at the video…';
+  const res = await fetch('/api/inspect', {
+    method: 'POST',
+    body: JSON.stringify({
+      song: state.song,
+      onlyLyrics: document.getElementById('onlyLyrics').checked
+    })
+  });
+  const d = await res.json();
+  if (d.error) { info.innerHTML = `<span class="err">${d.error}</span>`; return; }
+  info.innerHTML = `<code>${d.width}&times;${d.height}</code> at ${d.fps}fps, `
+    + `${d.duration ? d.duration.toFixed(0) + 's' : 'unknown length'}, `
+    + (d.hasAudio ? 'audio found' : '<span class="err">no audio</span>')
+    + `<br>cover art: <code>${d.card || 'none'}</code>`
+    + ` &nbsp; lyrics band: <code>${d.lyrics || 'none'}</code>`
+    + `<br>Checkerboard below is see-through. Only what you see will be kept.`;
+  const img = document.getElementById('preview');
+  img.src = '/api/file/' + d.preview + '?t=' + Date.now();
+  img.classList.remove('hide');
+};
+
+document.getElementById('btnRender').onclick = async () => {
+  const wrap = document.getElementById('progressWrap');
+  const results = document.getElementById('results');
+  results.innerHTML = ''; wrap.classList.remove('hide');
+  document.getElementById('btnRender').disabled = true;
+
+  const res = await fetch('/api/render', {
+    method: 'POST',
+    body: JSON.stringify({
+      song: state.song,
+      background: state.background,
+      onlyLyrics: document.getElementById('onlyLyrics').checked,
+      ratios: ratios(),
+      duration: parseFloat(document.getElementById('duration').value) || null
+    })
+  });
+  const { job, error } = await res.json();
+  if (error) { results.innerHTML = `<span class="err">${error}</span>`; refresh(); return; }
+
+  const timer = setInterval(async () => {
+    const s = await (await fetch('/api/job/' + job)).json();
+    document.getElementById('bar').style.width = (s.percent || 0) + '%';
+    document.getElementById('stage').textContent = s.stage || '';
+    if (s.state === 'done') {
+      clearInterval(timer);
+      results.innerHTML = '<b>Ready:</b><br>' + s.outputs.map(o =>
+        `<a class="dl" href="/api/file/${o.name}" download>${o.ratio} &mdash; ${o.name}`
+        + ` (${(o.size / 1048576).toFixed(1)} MB)</a>`).join('');
+      refresh();
+    } else if (s.state === 'error') {
+      clearInterval(timer);
+      document.getElementById('stage').innerHTML = `<span class="err">${s.error}</span>`;
+      refresh();
+    }
+  }, 700);
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+numpy>=1.24
+pillow>=10.0
+# Ships a self-contained ffmpeg, so there is nothing to install separately.
+# A system ffmpeg is used in preference to this one when present.
+imageio-ffmpeg>=0.4.9
