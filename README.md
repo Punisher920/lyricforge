@@ -38,7 +38,21 @@ A system ffmpeg is used when you have one, because it is faster and brings
 `ffprobe` with it. Without one the bundled build is used and geometry is read
 by parsing ffmpeg's own output instead.
 
-## The window (easiest)
+## Just double-click it
+
+**Windows** — double-click `lyricforge.bat`
+**macOS** — double-click `lyricforge.command`
+
+The first run sets up a private Python environment inside the project folder
+and installs what it needs, which takes a minute or two. Every run after that
+starts in about a second. Your browser opens on its own; leave the black
+console window open while you work.
+
+If it reports that Python is missing, install Python 3.10 or newer from
+<https://www.python.org/downloads/> and, on Windows, tick **Add python.exe to
+PATH** on the installer's first screen.
+
+## The window (manual)
 
 ```bash
 pip install -r requirements.txt
