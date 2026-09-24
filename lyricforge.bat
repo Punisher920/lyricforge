@@ -2,6 +2,9 @@
 title lyricforge
 cd /d "%~dp0"
 
+if not exist "%~dp0requirements.txt" goto wrongfolder
+if not exist "%~dp0lyricforge\__init__.py" goto wrongfolder
+
 set "VENV=%~dp0.venv"
 set "VPY=%VENV%\Scripts\python.exe"
 
@@ -69,12 +72,34 @@ echo.
 pause
 exit /b 1
 
+:wrongfolder
+echo.
+echo   This launcher is not inside the lyricforge project folder.
+echo.
+echo   It is sitting in:
+echo     %~dp0
+echo.
+echo   It has to live next to requirements.txt and the lyricforge folder.
+echo.
+echo   To fix it:
+echo     1. Go to  https://github.com/Punisher920/lyricforge
+echo     2. Green "Code" button, then "Download ZIP"
+echo     3. Extract it somewhere simple such as  C:\lyricforge
+echo     4. Double-click this file from INSIDE that folder
+echo.
+echo   Avoid the Desktop and other OneDrive folders - OneDrive syncing
+echo   interferes with the Python environment this creates.
+echo.
+pause
+exit /b 1
+
 :depsfailed
 echo.
-echo   Installing the dependencies failed.
+echo   Installing the dependencies failed. The error from pip is above.
 echo.
-echo   This is usually no internet connection, or a company network blocking
-echo   pip. The error from pip is above.
+echo   Common causes:
+echo     - No internet connection, or a network that blocks pip
+echo     - This folder is inside OneDrive; try C:\lyricforge instead
 echo.
 pause
 exit /b 1

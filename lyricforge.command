@@ -3,6 +3,19 @@
 set -u
 cd "$(dirname "$0")"
 
+if [ ! -f requirements.txt ] || [ ! -f lyricforge/__init__.py ]; then
+    echo
+    echo "  This launcher is not inside the lyricforge project folder."
+    echo "  It is sitting in: $(pwd)"
+    echo
+    echo "  It has to live next to requirements.txt and the lyricforge folder."
+    echo "  Download the project from https://github.com/Punisher920/lyricforge"
+    echo "  then run this file from inside it."
+    echo
+    read -r -p "Press Return to close."
+    exit 1
+fi
+
 VENV=".venv"
 VPY="$VENV/bin/python"
 
@@ -36,6 +49,7 @@ if ! "$VPY" -c "import numpy, PIL, imageio_ffmpeg" >/dev/null 2>&1; then
     if ! "$VPY" -m pip install --disable-pip-version-check --quiet -r requirements.txt; then
         echo
         echo "  Installing the dependencies failed - see the error above."
+        echo "  Usually no internet, or a network that blocks pip."
         read -r -p "Press Return to close."
         exit 1
     fi
