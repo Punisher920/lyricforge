@@ -86,6 +86,20 @@ python -m lyricforge render mysong.mp4 --background loop.mp4 \
 Step 1 is the important habit: `check.png` shows exactly what will be kept,
 on a transparency checkerboard, before you spend minutes on a render.
 
+### Sizing and readability
+
+Text size is worked out from the *kept* region, not the whole Suno frame. A
+Suno export is tall and mostly empty once the title and cover art are
+dropped, so fitting the full frame into a widescreen canvas would shrink the
+words to a narrow column; fitting the lyric band instead makes them fill the
+frame. The result is the same relative text size in every aspect ratio, with
+no setting to adjust — 16:9 comes out around 2.8x larger than a whole-frame
+fit.
+
+A soft, feathered shade sits under the text so light lyrics stay readable
+over bright footage. It is on by default; `--shade 0` removes it, and
+`--zoom` nudges the size if you want it bigger or smaller.
+
 ## Use
 
 Check what it found before rendering anything:
@@ -144,17 +158,17 @@ detection.
 | `--keep X,Y,W,H` | Keep only this region, overriding detection. Repeatable. |
 | `--card` | `auto` (default), `none`, or explicit `x,y,w,h` when detection is off. Ignored under `--only-lyrics` unless set explicitly. |
 | `--drop X,Y,W,H` | Erase a region. Repeatable. |
-| `--zoom` | Scale the overlay within the canvas. Above 1.0 it crops rather than letterboxing — see below. |
+| `--zoom` | Text size multiplier on top of the automatic fit. |
+| `--shade` | Darkening behind the text, 0 to 1 (default 0.45). `0` turns it off. |
 | `--duration` | Render only the first N seconds. |
 | `--crf` / `--preset` | x264 quality and speed. |
 
 ## Known limitations
 
-- **A 9:16 source letterboxes into 16:9.** Suno exports vertical, so a
-  widescreen render puts the lyrics in a narrow centre column. `--zoom 2`
-  fills the frame but crops the title and watermark off the top and bottom.
-  For a proper widescreen lyric video you want the text re-laid-out, not
-  rescaled.
+- **Widescreen with the whole overlay kept is still small.** Under
+  `--only-lyrics` the text is sized to the lyric band and fills the frame in
+  any ratio, but keeping the title and cover art means fitting a tall frame
+  into a wide one, which shrinks everything. Widescreen wants lyrics only.
 - **The card may show a faint rectangular edge** where its drop shadow is
   passed through opaque. Tighten it with an explicit `--card x,y,w,h`.
 - **A faint streak can survive just above the first lyric line** under

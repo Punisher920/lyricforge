@@ -90,6 +90,8 @@ def _run_render(job_id: str, work: Path, params: dict[str, Any]) -> None:
                 song, background, destination,
                 canvas=canvas, fps=float(params.get("fps", 30)),
                 scale=found.scale, opaque=card, keep=keep,
+                zoom=float(params.get("size", 1.0)),
+                shade=float(params.get("shade", render.DEFAULT_SHADE)),
                 limit_seconds=duration, progress=False, on_progress=report,
             )
             outputs.append({"ratio": ratio, "name": destination.name,

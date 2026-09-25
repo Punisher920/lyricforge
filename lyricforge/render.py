@@ -16,6 +16,10 @@ from .matte import Rect
 # Anchoring on the short edge gives 1920x1080, 1080x1920, 1080x1080 and
 # Instagram's 1080x1350 from one rule.
 DEFAULT_SHORT_EDGE = 1080
+# How much of the canvas the kept content fills before any manual sizing.
+DEFAULT_FILL = 0.88
+# Darkening under the text, so light lyrics survive a bright background.
+DEFAULT_SHADE = 0.45
 
 
 @dataclass(frozen=True)
@@ -46,12 +50,7 @@ def _even(value: float) -> int:
 
 @dataclass(frozen=True)
 class Placement:
-    """Where a scaled overlay lands on the canvas, clipped to it.
-
-    Zooming past 1.0 makes the overlay larger than the canvas, so both the
-    destination and the source have to be clipped; without this the centring
-    offsets go negative and wrap around the array.
-    """
+    """Where a scaled overlay lands on the canvas, clipped to it."""
 
     width: int          # scaled overlay size
     height: int
@@ -61,21 +60,75 @@ class Placement:
     src_y: int
     copy_w: int         # size of the overlapping region
     copy_h: int
+    content: tuple[float, float, float, float]  # kept area on the canvas
 
 
-def _fit(source: tuple[int, int], canvas: Canvas, zoom: float) -> Placement:
+def _fit(
+    source: tuple[int, int],
+    content: Rect,
+    canvas: Canvas,
+    zoom: float,
+    fill: float = DEFAULT_FILL,
+) -> Placement:
+    """Size and place the overlay so `content` fills the canvas.
+
+    Scaling to the kept region rather than the whole source frame is what
+    keeps the lyrics a readable size in every aspect ratio: a Suno export is
+    tall and mostly empty once the title and cover art are dropped, so fitting
+    the full frame into a widescreen canvas shrinks the words to a narrow
+    column. The overlay is then positioned by the centre of `content`, not of
+    the frame, since the lyric band does not sit in the middle of the source.
+    """
     src_w, src_h = source
-    factor = min(canvas.width / src_w, canvas.height / src_h) * zoom
-    width, height = max(1, round(src_w * factor)), max(1, round(src_h * factor))
+    scale = min(canvas.width * fill / content.width,
+                canvas.height * fill / content.height) * zoom
+    width, height = max(1, round(src_w * scale)), max(1, round(src_h * scale))
 
-    left, top = (canvas.width - width) // 2, (canvas.height - height) // 2
+    centre_x = (content.x + content.width / 2) * scale
+    centre_y = (content.y + content.height / 2) * scale
+    left = round(canvas.width / 2 - centre_x)
+    top = round(canvas.height / 2 - centre_y)
+
     src_x, src_y = max(0, -left), max(0, -top)
     dest_x, dest_y = max(0, left), max(0, top)
     copy_w = min(width - src_x, canvas.width - dest_x)
     copy_h = min(height - src_y, canvas.height - dest_y)
     if copy_w <= 0 or copy_h <= 0:
-        raise ValueError("Overlay does not overlap the canvas; check --zoom.")
-    return Placement(width, height, dest_x, dest_y, src_x, src_y, copy_w, copy_h)
+        raise ValueError("Overlay does not overlap the canvas; check the size setting.")
+
+    return Placement(
+        width, height, dest_x, dest_y, src_x, src_y, copy_w, copy_h,
+        content=(left + content.x * scale, top + content.y * scale,
+                 content.width * scale, content.height * scale),
+    )
+
+
+def _smoothstep(values: np.ndarray) -> np.ndarray:
+    v = np.clip(values, 0.0, 1.0)
+    return v * v * (3.0 - 2.0 * v)
+
+
+def _axis_ramp(length: int, low: float, high: float, feather: float) -> np.ndarray:
+    """1.0 between low and high, easing to 0 over `feather` either side."""
+    coords = np.arange(length, dtype=np.float32)
+    feather = max(feather, 1.0)
+    rising = _smoothstep((coords - (low - feather)) / feather)
+    falling = _smoothstep(((high + feather) - coords) / feather)
+    return np.minimum(rising, falling)
+
+
+def shade_mask(canvas: Canvas, place: Placement, pad_fraction: float = 0.045) -> np.ndarray:
+    """A soft dark pad sitting under the kept content.
+
+    Feathered rather than a hard box, so it reads as the background dimming
+    behind the words instead of a rectangle pasted over the footage.
+    """
+    x, y, width, height = place.content
+    pad = pad_fraction * min(canvas.width, canvas.height)
+    feather = max(pad, 1.0)
+    horizontal = _axis_ramp(canvas.width, x - pad, x + width + pad, feather)
+    vertical = _axis_ramp(canvas.height, y - pad, y + height + pad, feather)
+    return (vertical[:, None] * horizontal[None, :]).astype(np.float32)
 
 
 def _background_filters(canvas: Canvas) -> list[str]:
@@ -100,6 +153,7 @@ def render(
     block: int = matte.DEFAULT_BLOCK,
     gate: float = matte.DEFAULT_GATE,
     zoom: float = 1.0,
+    shade: float = DEFAULT_SHADE,
     crf: int = 18,
     preset: str = "medium",
     limit_seconds: float | None = None,
@@ -109,7 +163,13 @@ def render(
     """Stream `source`'s overlay over a looping `background` into `out_path`."""
     info = ffmpeg.probe(source)
     src_w, src_h = info.width, info.height
-    place = _fit((src_w, src_h), canvas, zoom)
+    content = _content_rect(keep, src_w, src_h)
+    place = _fit((src_w, src_h), content, canvas, zoom)
+
+    darken = None
+    if shade > 0:
+        mask = shade_mask(canvas, place) * float(np.clip(shade, 0.0, 1.0))
+        darken = (1.0 - mask)[..., None]
 
     overlay_frames = ffmpeg.read_frames(source, width=src_w, height=src_h, fps=fps)
     background_frames = ffmpeg.read_frames(
@@ -145,7 +205,7 @@ def render(
                 cached = _resize_overlay(colour, alpha, place.width, place.height)
                 previous_raw = key
 
-            writer.stdin.write(_composite(plate, cached, place))
+            writer.stdin.write(_composite(plate, cached, place, darken))
             count += 1
             if on_progress is not None and count % 15 == 0:
                 on_progress(count, expected)
@@ -176,13 +236,27 @@ def _resize_overlay(
     )
 
 
+def _content_rect(keep: tuple[Rect, ...], width: int, height: int) -> Rect:
+    """The area worth showing: the kept regions, or the whole frame."""
+    if not keep:
+        return Rect(0, 0, width, height)
+    left = min(r.x for r in keep)
+    top = min(r.y for r in keep)
+    right = max(r.x + r.width for r in keep)
+    bottom = max(r.y + r.height for r in keep)
+    return Rect(left, top, right - left, bottom - top)
+
+
 def _composite(
     plate: np.ndarray,
     overlay: tuple[np.ndarray, np.ndarray],
     place: Placement,
+    darken: np.ndarray | None = None,
 ) -> bytes:
     colour, alpha = overlay
     out = plate.astype(np.float32) / 255.0
+    if darken is not None:
+        out *= darken
 
     src = (slice(place.src_y, place.src_y + place.copy_h),
            slice(place.src_x, place.src_x + place.copy_w))

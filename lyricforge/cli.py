@@ -137,7 +137,7 @@ def cmd_render(args: argparse.Namespace) -> int:
             canvas=canvas, fps=args.fps, scale=result.scale,
             opaque=card, keep=keep, drop=tuple(args.drop),
             block=args.block, gate=args.gate,
-            zoom=args.zoom, crf=args.crf, preset=args.preset,
+            zoom=args.zoom, shade=args.shade, crf=args.crf, preset=args.preset,
             limit_seconds=args.duration,
         )
     print(f"\nDone: {len(outputs)} file(s).")
@@ -210,7 +210,11 @@ def build_parser() -> argparse.ArgumentParser:
     render_cmd.add_argument("--short-edge", type=int, default=render.DEFAULT_SHORT_EDGE,
                             help="Short edge of the output in pixels")
     render_cmd.add_argument("--zoom", type=float, default=1.0,
-                            help="Scale the overlay within the canvas")
+                            help="Text size multiplier; 1.0 fits the kept "
+                                 "content to the canvas")
+    render_cmd.add_argument("--shade", type=float, default=render.DEFAULT_SHADE,
+                            help="Darkening behind the text, 0 to 1. "
+                                 "0 turns it off")
     render_cmd.add_argument("--duration", type=float,
                             help="Render only the first N seconds (for previewing)")
     render_cmd.add_argument("--crf", type=int, default=18, help="x264 quality (lower=better)")

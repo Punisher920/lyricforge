@@ -83,6 +83,23 @@
       <label class="opt"><input type="checkbox" class="ratio" value="16:9"> 16:9 <span class="meta">YouTube</span></label>
       <label class="opt"><input type="checkbox" class="ratio" value="4:5"> 4:5 <span class="meta">IG portrait</span></label>
     </div>
+    <div class="row" style="margin-bottom:12px">
+      <label class="meta">Text size
+        <select id="size">
+          <option value="0.85">Smaller</option>
+          <option value="1" selected>Normal (fits the format)</option>
+          <option value="1.15">Larger</option>
+        </select>
+      </label>
+      <label class="meta">Shade behind the text
+        <select id="shade">
+          <option value="0">Off</option>
+          <option value="0.3">Light</option>
+          <option value="0.45" selected>Medium</option>
+          <option value="0.65">Strong</option>
+        </select>
+      </label>
+    </div>
     <label class="meta">Length
       <select id="duration">
         <option value="15">First 15 seconds (quick test)</option>
@@ -192,6 +209,8 @@ document.getElementById('btnRender').onclick = async () => {
       background: state.background,
       onlyLyrics: document.getElementById('onlyLyrics').checked,
       ratios: ratios(),
+      size: parseFloat(document.getElementById('size').value),
+      shade: parseFloat(document.getElementById('shade').value),
       duration: parseFloat(document.getElementById('duration').value) || null
     })
   });
